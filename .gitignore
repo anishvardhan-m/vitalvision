@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+*.egg
+
+# Virtual environment
+.venv/
+
+# macOS
+.DS_Store
+
+# Project data and models
+data/raw/*
+!data/raw/.gitkeep
+models/*
+!models/.gitkeep
+*.task
