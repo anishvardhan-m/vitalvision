@@ -26,3 +26,6 @@ Never write `docs/devlog.md` entries for the user - that file is theirs.
 Use `time.monotonic()` for frame timestamps. Use the MediaPipe CPU delegate
 (not GPU/Metal - 0.10.35 is pinned because newer MediaPipe crashes with a
 Metal error on this M4 Mac).
+
+When committing, never add Co-Authored-By or any Claude/AI attribution to
+commit messages. All commits are authored by the user.
