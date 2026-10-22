@@ -8,68 +8,30 @@ the dominant frequency of the FFT as the BPM.
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
-from scipy import signal as sp_signal
 
-RESAMPLE_HZ = 30.0
-BAND_LOW_BPM = 42.0
-BAND_HIGH_BPM = 180.0
-FILTER_ORDER = 3
-
-
-def load_signal(path: Path) -> pd.DataFrame:
-    """Load a Phase 2 CSV (timestamp_s, mean_r, mean_g, mean_b)."""
-    df = pd.read_csv(path)
-    required = {"timestamp_s", "mean_r", "mean_g", "mean_b"}
-    if not required.issubset(df.columns):
-        sys.exit(f"Error: {path} is missing columns {required - set(df.columns)}")
-    return df
-
-
-def resample_uniform(timestamps_s: np.ndarray, values: np.ndarray, hz: float) -> np.ndarray:
-    """Linearly interpolate an irregularly-sampled signal onto a uniform time grid."""
-    uniform_t = np.arange(timestamps_s[0], timestamps_s[-1], 1.0 / hz)
-    return np.interp(uniform_t, timestamps_s, values)
-
-
-def detrend(values: np.ndarray) -> np.ndarray:
-    """Remove the linear trend (slow lighting drift) from a signal."""
-    return sp_signal.detrend(values, type="linear")
-
-
-def bandpass_filter(values: np.ndarray, fs_hz: float, low_bpm: float, high_bpm: float) -> np.ndarray:
-    """Zero-phase Butterworth band-pass filter, in the plausible heart-rate band."""
-    nyquist = fs_hz / 2.0
-    low = (low_bpm / 60.0) / nyquist
-    high = (high_bpm / 60.0) / nyquist
-    b, a = sp_signal.butter(FILTER_ORDER, [low, high], btype="band")
-    return sp_signal.filtfilt(b, a, values)
-
-
-def estimate_bpm(filtered: np.ndarray, fs_hz: float) -> tuple[float, np.ndarray, np.ndarray]:
-    """Return (bpm, freqs_hz, magnitude) from the FFT of a filtered signal."""
-    windowed = filtered * np.hanning(len(filtered))
-    spectrum = np.fft.rfft(windowed)
-    freqs_hz = np.fft.rfftfreq(len(windowed), d=1.0 / fs_hz)
-    magnitude = np.abs(spectrum)
-
-    band = (freqs_hz * 60.0 >= BAND_LOW_BPM) & (freqs_hz * 60.0 <= BAND_HIGH_BPM)
-    if not np.any(band):
-        return 0.0, freqs_hz, magnitude
-    peak_index = np.argmax(magnitude[band])
-    peak_freq_hz = freqs_hz[band][peak_index]
-    return peak_freq_hz * 60.0, freqs_hz, magnitude
+from vitalvision.io import load_signal
+from vitalvision.signal import (
+    BAND_HIGH_BPM,
+    RESAMPLE_HZ,
+    bandpass_filter,
+    bpm_from_pulse,
+    detrend,
+    resample_uniform,
+)
 
 
 def plot_pipeline(
-    raw: np.ndarray, filtered: np.ndarray, freqs_hz: np.ndarray, magnitude: np.ndarray, bpm: float
+    raw: np.ndarray, filtered: np.ndarray, fs_hz: float, bpm: float
 ) -> None:
     """Show the raw vs. filtered signal and its spectrum, with the BPM peak marked."""
     import matplotlib.pyplot as plt
+
+    windowed = filtered * np.hanning(len(filtered))
+    magnitude = np.abs(np.fft.rfft(windowed))
+    freqs_hz = np.fft.rfftfreq(len(windowed), d=1.0 / fs_hz)
 
     fig, (ax_signal, ax_spectrum) = plt.subplots(2, 1, figsize=(9, 6))
     ax_signal.plot(raw, label="raw (detrended) green channel", alpha=0.5)
@@ -101,15 +63,15 @@ def main() -> None:
 
     uniform_green = resample_uniform(timestamps_s, green, RESAMPLE_HZ)
     detrended = detrend(uniform_green)
-    filtered = bandpass_filter(detrended, RESAMPLE_HZ, BAND_LOW_BPM, BAND_HIGH_BPM)
-    bpm, freqs_hz, magnitude = estimate_bpm(filtered, RESAMPLE_HZ)
+    filtered = bandpass_filter(detrended, RESAMPLE_HZ)
+    bpm = bpm_from_pulse(filtered, RESAMPLE_HZ)
 
     print(f"Duration:     {timestamps_s[-1] - timestamps_s[0]:.1f} s")
     print(f"Resampled to: {RESAMPLE_HZ:.0f} Hz ({len(uniform_green)} samples)")
-    print(f"Estimated BPM: {bpm:.1f}")
+    print(f"Estimated BPM: {bpm:.1f}" if bpm else "Estimated BPM: could not detect a peak")
 
     if args.plot:
-        plot_pipeline(detrended, filtered, freqs_hz, magnitude, bpm)
+        plot_pipeline(detrended, filtered, RESAMPLE_HZ, bpm or 0.0)
 
 
 if __name__ == "__main__":
