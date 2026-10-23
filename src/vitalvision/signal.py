@@ -6,8 +6,12 @@ import numpy as np
 from scipy import signal as sp_signal
 
 RESAMPLE_HZ = 30.0
-BAND_LOW_BPM = 42.0
-BAND_HIGH_BPM = 180.0
+# Narrowed from (42, 180) to exclude a recurring ~50 BPM camera auto-exposure
+# artifact seen on the M4 Mac's built-in webcam that otherwise dominates the
+# FFT peak. Widen back out if evaluating someone whose true rate falls
+# outside 55-150.
+BAND_LOW_BPM = 55.0
+BAND_HIGH_BPM = 150.0
 FILTER_ORDER = 3
 
 

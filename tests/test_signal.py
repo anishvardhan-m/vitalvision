@@ -26,7 +26,7 @@ def test_detrend_removes_linear_drift():
     assert abs(slope) < 0.05
 
 
-@pytest.mark.parametrize("true_bpm", [48.0, 72.0, 110.0, 160.0])
+@pytest.mark.parametrize("true_bpm", [60.0, 72.0, 110.0, 140.0])
 def test_bandpass_and_fft_recover_known_bpm(true_bpm):
     fs_hz = 30.0
     duration_s = 20.0
